@@ -1,2 +1,5 @@
 pyproject.toml
 .streamlit/
+template
+build
+.secrets

@@ -1,4 +1,9 @@
 import streamlit as st
+import pandas as pd
+import io
+from io import StringIO
+import os
+import time
 
 # Initialize connection.
 conn = st.experimental_connection('test', type='sql')
@@ -106,52 +111,94 @@ def user_management():
         pass
     
 
+faascli_path = 'faas-cli'
+user_docker_name = 'sarahha'
+openfaas_ip = 'http://127.0.0.1:57478/'
+def build_function(function_name, function_code):
+    # create function
+    if os.system(faascli_path + ' new ' + function_name + ' -lang python3 -p ' + user_docker_name) == 0:
+        info_box = st.info('函数创建完成')
+        time.sleep(1)
+    else:
+        info_box = st.info('函数创建失败')
+    # import requirements
+    if os.system('pipreqs ./' + function_name + ' --encoding=utf8 --force') == 0:
+        info_box.info('函数依赖添加完成')
+        time.sleep(1)
+    else:
+        info_box = st.info('函数依赖添加失败')
+    # build image
+    if os.system('faas-cli build -f ./' + function_name + '.yml') == 0:
+        info_box.info('函数镜像创建成功')
+        time.sleep(1)
+    else:
+        info_box = st.info('函数镜像创建失败')
+    # push to docker registry
+    if os.system('faas-cli push -f ./' + function_name + '.yml') == 0:
+        info_box.info('函数成功上传')
+        time.sleep(1)
+    else:
+        info_box = st.info('函数上传失败')
+    # deploy to openfaas
+    if os.system('faas-cli deploy -f ./'
+                    + function_name + '.yml --gateway ' + openfaas_ip) == 0:
+        info_box.info('函数成功部署')
+        time.sleep(1)
+    else:
+        info_box = st.info('函数部署失败')
+
+
+
 if (user_management()):
-    device = st.sidebar.selectbox("Choose a device", ['Debot Magican', 'Debot M1'])
+    
+    with st.sidebar:
+        device = st.radio(
+            "Choose a device",
+            ("Debot Magican", "Debot M1")
+        )
+    # device = st.sidebar.selectbox("", ['Debot Magican', 'Debot M1'])
+
+    if (device == "Debot Magican"):
+        with st.sidebar:
+            purpose = st.radio(
+                "What's your purpose",
+                ("Use a function", "Design a function")
+            )
+
+        if (purpose == "Use a function"):
+            st.header("Function name: Occupy and Release")
+
+        elif (purpose == "Design a function"):
+            st.header("Function Name: Occupy and Release")
+
+            function_import = st.selectbox("How to write functions?", ("Handwriting", "Uploading", "Using Github repository"))
+
+            if (function_import == "Handwriting"):
+                function_name = st.text_input("Your function name:")
+                # input code
+                function_code = st.text_area("Text to write your functions or you can upload your code", 
+                                            '''def handle(req):\n\nreturn req''')
+                st.code(function_code, language="python")
+                # click button
+                build_func_button = st.button("Build function") 
+                if (build_func_button):
+                    build_function(function_name, function_code)
+
+            elif (function_import == "Uploading"):
+                function_name = st.text_input("Your function name:")
+                # file uploading
+                uploaded_code_file = st.file_uploader("Choose a file...")
+                if uploaded_code_file is not None:
+                    function_code_string = StringIO(uploaded_code_file.getvalue().decode("utf-8"))
+                    function_code = function_code_string.read()
+                    st.code(function_code, language="python")
+                else:
+                    st.info('☝️ Upload a code file')
+                st.button("Build function")
 
 
-
-
-
-# # v2
-# st.session_state["user_state"] = False
-
-# if (not st.session_state["user_state"]):
-#     input_username = st.text_input('Username')
-#     input_password = st.text_input('Password')
-
-#     try:
-#         query_user = "SELECT * FROM sys_user WHERE username='" + input_username + "'AND password='" + input_password + "';"
-#         st.write(query_user)
-#         user = conn.query(query_user, ttl=30)
-#     except Exception as e:
-#         st.write(e)
-
-#     st.write(user)
-#     st.session_state["user_state"] = True
-
-
-# if (not user.empty):
-#     work_content = st.sidebar.selectbox("Choose a device", ['Debot Magican', 'Debot M1'])
-
-
-# v1
-# st.session_state["user_state"] = False
-
-# if st.session_state["user_state"]:
-#     work_content = st.sidebar.selectbox("Choose a device", ['Debot Magican', 'Debot M1'])
-
-# else:
-#     input_username = st.text_input('Username')
-#     input_password = st.text_input('Password')
-
-#     try:
-#         query_user = "SELECT * FROM sys_user WHERE username='" + input_username + "'AND password='" + input_password + "';"
-#         st.write(query_user)
-#         user = conn.query(query_user, ttl=30)
-#     except Exception as e:
-#         st.write(e)
-
-#     st.write(user)
-#     if (not user.empty):
-#         st.session_state["user_state"] = True
+    elif (device == "Debot M1"):
+        st.write()
+    else:
+        pass
+    
